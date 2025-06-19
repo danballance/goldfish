@@ -1,8 +1,12 @@
-.PHONY: build test lint clean install
+.PHONY: build build-external test lint clean install
 
-# Build the application
+# Build the application with embedded defaults
 build:
 	go build -o bin/goldfish ./cmd/goldfish
+
+# Build with external config only (legacy mode)
+build-external:
+	go build -tags external_config -o bin/goldfish-external ./cmd/goldfish
 
 # Run tests
 test:

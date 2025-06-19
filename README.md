@@ -209,9 +209,59 @@ goldfish find --size "+1M" --type f
 
 ## Configuration
 
+### Embedded Defaults vs Runtime Configuration
+
+**New in Goldfish**: Commands are now embedded directly in the binary for easy distribution!
+
+Goldfish now supports two configuration approaches:
+
+#### 1. Embedded Defaults (Recommended for Distribution)
+- **Default commands** are baked into the goldfish binary at build time
+- **No external files required** - goldfish works immediately after installation
+- **Comprehensive set** of useful cross-platform commands included
+- **Easy distribution** - single binary with all necessary commands
+
+#### 2. Optional Runtime Configuration
+For advanced users who want to customize or extend goldfish:
+
+- **Add new commands** - Define additional commands beyond the built-in ones
+- **Override defaults** - Customize existing commands with your own implementations  
+- **Organization-specific** - Add commands tailored to your workflow
+
+#### Configuration Loading Priority
+1. **Embedded defaults** are loaded first (always available)
+2. **Runtime configuration** (`commands.yml`) is loaded if present in working directory
+3. **Runtime commands override** embedded ones when names/aliases match
+4. **Fallback behavior** - if runtime config fails to load, embedded defaults are used
+
+### Example: Using Both Approaches
+
+```bash
+# Works immediately with embedded defaults (no config file needed)
+goldfish replace --help
+goldfish find --name "*.go"
+
+# Create optional runtime config to add/override commands
+cat > commands.yml << EOF
+commands:
+  - name: "custom-grep"
+    description: "My custom grep command"
+    base_command: "rg"  # Use ripgrep instead of grep
+    # ... rest of configuration
+    
+  - name: "replace-in-file"  # Override built-in command
+    description: "CUSTOMIZED replace functionality"
+    # ... your custom implementation
+EOF
+
+# Now goldfish uses embedded defaults + your customizations
+goldfish replace --help  # Shows your customized version
+goldfish custom-grep --help  # Shows your new command
+```
+
 ### commands.yml Structure
 
-The behavior is defined in `commands.yml`:
+When using runtime configuration, the behavior is defined in `commands.yml`:
 
 ```yaml
 commands:
@@ -590,8 +640,11 @@ Renders to: `sed -i 's/old/new/g' test.txt`
 ### Build Commands
 
 ```bash
-# Build development version
+# Build with embedded defaults (recommended)
 make build
+
+# Build with external config only (legacy mode)
+make build-external
 
 # Run all quality checks
 make check

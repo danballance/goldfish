@@ -51,8 +51,8 @@ func main() {
 
 // initialize sets up the CLI application
 func (app *GoldfishApp) initialize() error {
-	// Load configuration
-	cfg, err := config.LoadDefault()
+	// Load configuration with embedded defaults and optional runtime override
+	cfg, err := config.LoadDefaultWithEmbedded()
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}

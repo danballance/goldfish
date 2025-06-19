@@ -208,3 +208,15 @@ func LoadDefault() (*Config, error) {
 	loader := NewLoader(configPath)
 	return loader.Load()
 }
+
+// LoadDefaultWithEmbedded loads configuration using embedded defaults with optional runtime override
+// This is the recommended way to load configuration for distribution builds
+func LoadDefaultWithEmbedded() (*Config, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get working directory: %w", err)
+	}
+	
+	configPath := filepath.Join(wd, "commands.yml")
+	return LoadWithDefaults(configPath)
+}
