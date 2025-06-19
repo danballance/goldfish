@@ -18,6 +18,22 @@ import (
 	"github.com/danballance/goldfish/internal/platform"
 )
 
+// ExitErrorWithCode is an error type that includes an exit code.
+type ExitErrorWithCode struct {
+	Err      error
+	ExitCode int
+}
+
+// Error returns the error message.
+func (e *ExitErrorWithCode) Error() string {
+	return e.Err.Error()
+}
+
+// Unwrap returns the underlying error.
+func (e *ExitErrorWithCode) Unwrap() error {
+	return e.Err
+}
+
 // ExecutionContext holds the context for command execution
 // It contains all the information needed to execute a command
 type ExecutionContext struct {
@@ -213,11 +229,10 @@ func (e *Engine) executeCommand(command string, timeout time.Duration) error {
 		
 		// For exit code errors, we want to preserve the exit code
 		if exitError, ok := err.(*exec.ExitError); ok {
-			// We defer the exit to allow cleanup functions to run
-			defer func() {
-				os.Exit(exitError.ExitCode())
-			}()
-			return fmt.Errorf("command failed with exit code %d", exitError.ExitCode())
+			return &ExitErrorWithCode{
+				Err:      fmt.Errorf("command failed with exit code %d", exitError.ExitCode()),
+				ExitCode: exitError.ExitCode(),
+			}
 		}
 		
 		return fmt.Errorf("command execution failed: %w", err)

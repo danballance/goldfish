@@ -156,7 +156,7 @@ func TestEngine_renderTemplate(t *testing.T) {
 	}
 
 	platformCmd := &config.PlatformCommand{
-		Template: "{{.base_command}} {{if .params.verbose}}-v{{end}} '{{.params.message}}'",
+		Template: "{{.base_command}}{{if .params.verbose}} -v{{end}} '{{.params.message}}'",
 	}
 
 	params := map[string]interface{}{
@@ -181,7 +181,7 @@ func TestEngine_renderTemplate(t *testing.T) {
 		t.Fatalf("renderTemplate() failed: %v", err)
 	}
 
-	expected = "echo  'hello world'"
+	expected := "echo 'hello world'"
 	if result != expected {
 		t.Errorf("Expected rendered command '%s', got '%s'", expected, result)
 	}

@@ -113,7 +113,7 @@ jobs:
         fi
         
         # Move archive to dist root for upload
-        mv "${archive_file}" ../
+        mv "$archive_file" ../
 
     - name: Generate checksums
       run: |
