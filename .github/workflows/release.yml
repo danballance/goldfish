@@ -1,0 +1,217 @@
+name: Release
+
+# Trigger on version tags (v1.0.0, v2.1.3, etc.)
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Define permissions for creating releases and uploading assets
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  # Release job - create cross-platform binaries and GitHub release
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false  # Build all platforms even if one fails
+      matrix:
+        include:
+          # Linux builds
+          - goos: linux
+            goarch: amd64
+            archive_format: tar.gz
+          - goos: linux
+            goarch: arm64
+            archive_format: tar.gz
+          
+          # macOS builds
+          - goos: darwin
+            goarch: amd64
+            archive_format: tar.gz
+          - goos: darwin
+            goarch: arm64
+            archive_format: tar.gz
+          
+          # Windows builds
+          - goos: windows
+            goarch: amd64
+            archive_format: zip
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for proper version info
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: 'go.mod'
+        cache: true
+
+    - name: Get version info
+      id: version
+      run: |
+        # Extract version from tag (remove 'v' prefix)
+        VERSION=${GITHUB_REF_NAME#v}
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "tag=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+        
+        # Get commit info for build metadata
+        COMMIT=$(git rev-parse HEAD)
+        echo "commit=${COMMIT}" >> $GITHUB_OUTPUT
+        
+        # Get build date
+        BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+        echo "build_date=${BUILD_DATE}" >> $GITHUB_OUTPUT
+
+    - name: Build binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0  # Build static binaries
+      run: |
+        # Determine binary name with platform-specific extension
+        binary_name="goldfish"
+        if [ "${{ matrix.goos }}" = "windows" ]; then
+          binary_name="${binary_name}.exe"
+        fi
+        
+        # Build with version injection and optimization flags
+        go build \
+          -ldflags="-s -w -X 'main.version=${{ steps.version.outputs.version }}' -X 'main.commit=${{ steps.version.outputs.commit }}' -X 'main.buildDate=${{ steps.version.outputs.build_date }}'" \
+          -o "dist/${binary_name}" \
+          ./cmd/goldfish
+        
+        # Create archive name following conventions
+        archive_name="goldfish_${{ steps.version.outputs.version }}_${{ matrix.goos }}_${{ matrix.goarch }}"
+        
+        # Create archive directory and move binary
+        mkdir -p "dist/archive/${archive_name}"
+        cp "dist/${binary_name}" "dist/archive/${archive_name}/"
+        
+        # Add README and license to archive if they exist
+        if [ -f "README.md" ]; then
+          cp README.md "dist/archive/${archive_name}/"
+        fi
+        if [ -f "LICENSE" ]; then
+          cp LICENSE "dist/archive/${archive_name}/"
+        fi
+        
+        # Create archive based on platform
+        cd dist/archive
+        if [ "${{ matrix.archive_format }}" = "zip" ]; then
+          zip -r "${archive_name}.zip" "${archive_name}/"
+          echo "archive_file=${archive_name}.zip" >> $GITHUB_ENV
+        else
+          tar -czf "${archive_name}.tar.gz" "${archive_name}/"
+          echo "archive_file=${archive_name}.tar.gz" >> $GITHUB_ENV
+        fi
+        
+        # Move archive to dist root for upload
+        mv "${archive_file}" ../
+
+    - name: Generate checksums
+      run: |
+        cd dist
+        # Generate SHA256 checksums for all archives
+        for file in *.tar.gz *.zip; do
+          if [ -f "$file" ]; then
+            sha256sum "$file" >> checksums.txt
+          fi
+        done
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: goldfish_${{ matrix.goos }}_${{ matrix.goarch }}_${{ steps.version.outputs.version }}
+        path: |
+          dist/*.tar.gz
+          dist/*.zip
+          dist/checksums.txt
+        retention-days: 90
+
+  # Create GitHub release after all builds complete
+  create_release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: release
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Get version info
+      id: version
+      run: |
+        VERSION=${GITHUB_REF_NAME#v}
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "tag=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts/
+        merge-multiple: true
+
+    - name: Prepare release assets
+      run: |
+        # Create release directory
+        mkdir -p release/
+        
+        # Copy all archives and checksums to release directory
+        find artifacts/ -name "*.tar.gz" -o -name "*.zip" -o -name "checksums.txt" | while read file; do
+          if [ -f "$file" ]; then
+            cp "$file" release/
+          fi
+        done
+        
+        # Create combined checksums file
+        cd release
+        rm -f checksums.txt  # Remove individual checksum files
+        for file in *.tar.gz *.zip; do
+          if [ -f "$file" ]; then
+            sha256sum "$file" >> checksums.txt
+          fi
+        done
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: Release ${{ steps.version.outputs.tag }}
+        tag_name: ${{ steps.version.outputs.tag }}
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+        files: |
+          release/*.tar.gz
+          release/*.zip
+          release/checksums.txt
+        body: |
+          ## Goldfish ${{ steps.version.outputs.version }}
+          
+          Cross-platform binaries for Goldfish CLI tool.
+          
+          ### Downloads
+          
+          Choose the appropriate binary for your platform:
+          
+          - **Linux**: `goldfish_${{ steps.version.outputs.version }}_linux_amd64.tar.gz` or `goldfish_${{ steps.version.outputs.version }}_linux_arm64.tar.gz`
+          - **macOS**: `goldfish_${{ steps.version.outputs.version }}_darwin_amd64.tar.gz` or `goldfish_${{ steps.version.outputs.version }}_darwin_arm64.tar.gz`
+          - **Windows**: `goldfish_${{ steps.version.outputs.version }}_windows_amd64.zip`
+          
+          ### Installation
+          
+          1. Download the appropriate archive for your platform
+          2. Extract the archive: `tar -xzf goldfish_*.tar.gz` (or unzip for Windows)
+          3. Move the binary to your PATH: `mv goldfish /usr/local/bin/` (Unix/Linux/macOS)
+          4. Verify installation: `goldfish --version`
+          
+          ### Verification
+          
+          All binaries include SHA256 checksums in `checksums.txt` for integrity verification.
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

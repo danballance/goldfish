@@ -1,0 +1,138 @@
+commands:
+  - name: "replace-in-file"
+    alias: "replace" 
+    description: "Cross-platform sed replacement"
+    base_command: "sed"
+    params:
+      - name: "expression"
+        type: "string"
+        required: true
+        description: "Regular expression for find/replace (e.g., 's/old/new/g')"
+      - name: "file"
+        type: "string"
+        required: true
+        description: "Target file to modify"
+      - name: "in-place"
+        type: "bool"
+        flag: "--in-place"
+        description: "Edit file in-place instead of outputting to stdout"
+    platforms:
+      linux:
+        template: "{{.base_command}} {{if .params.in_place}}-i{{end}} '{{.params.expression}}' {{.params.file}}"
+      darwin:
+        template: "{{.base_command}} {{if .params.in_place}}-i ''{{end}} '{{.params.expression}}' {{.params.file}}"
+      windows:
+        template: "powershell -Command \"(Get-Content {{.params.file}}) -replace '{{.params.expression}}' | {{if .params.in_place}}Set-Content {{.params.file}}{{else}}Write-Output{{end}}\""
+
+  - name: "find-files"
+    alias: "find"
+    description: "Cross-platform file search"
+    base_command: "find"
+    params:
+      - name: "path"
+        type: "string"
+        required: false
+        default: "."
+        description: "Directory to search in"
+      - name: "name"
+        type: "string"
+        flag: "--name"
+        description: "File name pattern to match"
+      - name: "type"
+        type: "string"
+        flag: "--type"
+        description: "File type: f (file), d (directory)"
+      - name: "size"
+        type: "string"
+        flag: "--size"
+        description: "File size criteria (e.g., +1M, -100k)"
+    platforms:
+      linux:
+        template: "{{.base_command}} {{.params.path}} {{if .params.type}}-type {{.params.type}}{{end}} {{if .params.name}}-name '{{.params.name}}'{{end}} {{if .params.size}}-size {{.params.size}}{{end}}"
+      darwin:
+        template: "{{.base_command}} {{.params.path}} {{if .params.type}}-type {{.params.type}}{{end}} {{if .params.name}}-name '{{.params.name}}'{{end}} {{if .params.size}}-size {{.params.size}}{{end}}"
+      windows:
+        template: "powershell -Command \"Get-ChildItem -Path {{.params.path}} {{if .params.name}}-Name '{{.params.name}}'{{end}} -Recurse\""
+
+  - name: "archive-create"
+    alias: "tar"
+    description: "Cross-platform archive creation"
+    base_command: "tar"
+    params:
+      - name: "archive"
+        type: "string"
+        required: true
+        description: "Output archive filename"
+      - name: "files"
+        type: "string"
+        required: true
+        description: "Files/directories to archive"
+      - name: "compress"
+        type: "bool"
+        flag: "--compress"
+        description: "Enable gzip compression"
+      - name: "verbose"
+        type: "bool"
+        flag: "--verbose"
+        description: "Show files being archived"
+    platforms:
+      linux:
+        template: "{{.base_command}} -c{{if .params.compress}}z{{end}}{{if .params.verbose}}v{{end}}f {{.params.archive}} {{.params.files}}"
+      darwin:
+        template: "{{.base_command}} -c{{if .params.compress}}z{{end}}{{if .params.verbose}}v{{end}}f {{.params.archive}} {{.params.files}}"
+      windows:
+        template: "powershell -Command \"Compress-Archive -Path {{.params.files}} -DestinationPath {{.params.archive}}{{if .params.verbose}} -Verbose{{end}}\""
+
+  - name: "list-processes"
+    alias: "ps"
+    description: "Cross-platform process listing"
+    base_command: "ps"
+    params:
+      - name: "all"
+        type: "bool"
+        flag: "--all"
+        description: "Show all processes"
+      - name: "user"
+        type: "string"
+        flag: "--user"
+        description: "Show processes for specific user"
+      - name: "format"
+        type: "string"
+        flag: "--format"
+        description: "Output format (full, long, etc.)"
+    platforms:
+      linux:
+        template: "{{.base_command}} {{if .params.all}}aux{{else}}{{if .params.user}}-u {{.params.user}}{{end}}{{end}} {{if .params.format}}--format={{.params.format}}{{end}}"
+      darwin:
+        template: "{{.base_command}} {{if .params.all}}aux{{else}}{{if .params.user}}-u {{.params.user}}{{end}}{{end}}"
+      windows:
+        template: "powershell -Command \"Get-Process {{if .params.user}}-IncludeUserName{{end}} | Format-Table\""
+
+  - name: "network-info"
+    alias: "netstat"
+    description: "Cross-platform network connection information"
+    base_command: "netstat"
+    params:
+      - name: "listening"
+        type: "bool"
+        flag: "--listening"
+        description: "Show only listening ports"
+      - name: "numeric"
+        type: "bool"
+        flag: "--numeric"
+        description: "Show numerical addresses instead of resolving hosts"
+      - name: "tcp"
+        type: "bool"
+        flag: "--tcp"
+        description: "Show TCP connections only"
+      - name: "udp"
+        type: "bool"
+        flag: "--udp"
+        description: "Show UDP connections only"
+    platforms:
+      linux:
+        template: "{{.base_command}} {{if .params.listening}}-l{{end}} {{if .params.numeric}}-n{{end}} {{if .params.tcp}}-t{{end}} {{if .params.udp}}-u{{end}}"
+      darwin:
+        template: "{{.base_command}} {{if .params.listening}}-l{{end}} {{if .params.numeric}}-n{{end}} {{if .params.tcp}}-t{{end}} {{if .params.udp}}-u{{end}}"
+      windows:
+        template: "netstat {{if .params.listening}}-l{{end}} {{if .params.numeric}}-n{{end}} {{if .params.tcp}}-p TCP{{end}} {{if .params.udp}}-p UDP{{end}}"

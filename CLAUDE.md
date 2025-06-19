@@ -1,0 +1,5 @@
+- Ask me questions if you have any doubt or uncertainty about an aspect of a task.
+- Keep the code as simple and concise as possible.
+- Be sure to cover all code with unit tests.
+- Because I am new to the Go language, please provide lots of comments to explain all of the code.
+
