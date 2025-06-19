@@ -2,4 +2,4 @@
 - Keep the code as simple and concise as possible.
 - Be sure to cover all code with unit tests.
 - Because I am new to the Go language, please provide lots of comments to explain all of the code.
-
+- Solve bugs by writing a failing unit test that demonstrates the bug and making the test pass, rather than guessing, changing code and re-running. Remember to be a senior engineer and not a junior ;-)
