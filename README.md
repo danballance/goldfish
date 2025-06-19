@@ -2,6 +2,15 @@
 
 Goldfish is a Go CLI tool that provides unified command interfaces that work consistently across different operating systems (Linux, macOS, Windows). It solves the problem of platform-specific command differences by translating unified commands to their platform-specific equivalents at runtime.
 
+## Credits and attributions
+
+- @danballance - concept, direction and AI management 
+- Gemini 2.5Pro - initial project investigation and recommedantion to use Go + YAML configuration
+- Claude Code (Sonnet 4) - creation of GenAI-ready project spec from deep research report
+- Claude Code (Sonnet 4) - implementation of app in Go from project spec
+- Claude Desktop (Opus 4) - design of cross-platform GHA CI/CD pipelines
+- Cloud Code (Sonnet 4) - implementation of CI/CD pipelines for GHA
+
 ## Table of Contents
 
 - [Overview](#overview)
