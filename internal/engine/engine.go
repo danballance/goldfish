@@ -245,7 +245,10 @@ func (e *Engine) ParseParameters(cmd *config.Command, args []string, flags map[s
 	for flagName, flagValue := range flags {
 		// Find the parameter that corresponds to this flag
 		for _, param := range cmd.Parameters {
-			if param.Flag == flagName || param.Flag == "--"+flagName {
+			// Remove -- prefix for comparison
+			cleanFlagName := strings.TrimLeft(flagName, "-")
+			// Check if this flag matches the parameter's explicit flag or the parameter name
+			if param.Flag == flagName || param.Flag == "--"+cleanFlagName || param.Name == cleanFlagName {
 				params[param.Name] = flagValue
 				break
 			}

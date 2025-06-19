@@ -188,3 +188,112 @@ func TestLoadWithDefaults(t *testing.T) {
 		t.Errorf("Runtime command should have correct base command, got: %s", runtimeCmd.BaseCommand)
 	}
 }
+
+// TestFindConfigFile tests the config file search functionality
+func TestFindConfigFile(t *testing.T) {
+	// Save original search paths
+	originalPaths := ConfigSearchPaths
+	defer func() {
+		ConfigSearchPaths = originalPaths
+	}()
+
+	// Create temporary directories for testing
+	tempDir := t.TempDir()
+	homeConfigDir := filepath.Join(tempDir, "home_config")
+	etcConfigDir := filepath.Join(tempDir, "etc")
+
+	// Create directory structure
+	if err := os.MkdirAll(homeConfigDir, 0755); err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	if err := os.MkdirAll(etcConfigDir, 0755); err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+
+	// Set test search paths
+	ConfigSearchPaths = []string{
+		filepath.Join(tempDir, "current"),
+		homeConfigDir,
+		etcConfigDir,
+	}
+
+	// Test when no config files exist
+	path, found := findConfigFile()
+	if found {
+		t.Errorf("Expected no config file to be found, but found: %s", path)
+	}
+
+	// Create config file in lowest precedence location
+	etcConfigPath := filepath.Join(etcConfigDir, "commands.yml")
+	if err := os.WriteFile(etcConfigPath, []byte("# Test config"), 0644); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	// Test finding the etc config
+	path, found = findConfigFile()
+	if !found {
+		t.Error("Expected to find config file in etc directory")
+	} else if path != etcConfigPath {
+		t.Errorf("Expected path %s, got %s", etcConfigPath, path)
+	}
+
+	// Create config file in higher precedence location
+	homeConfigPath := filepath.Join(homeConfigDir, "commands.yml")
+	if err := os.WriteFile(homeConfigPath, []byte("# Home config"), 0644); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	// Test finding the home config (higher precedence)
+	path, found = findConfigFile()
+	if !found {
+		t.Error("Expected to find config file in home directory")
+	} else if path != homeConfigPath {
+		t.Errorf("Expected path %s, got %s", homeConfigPath, path)
+	}
+
+	// Create config file in highest precedence location
+	currentDir := filepath.Join(tempDir, "current")
+	if err := os.MkdirAll(currentDir, 0755); err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	currentConfigPath := filepath.Join(currentDir, "commands.yml")
+	if err := os.WriteFile(currentConfigPath, []byte("# Current dir config"), 0644); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	// Test finding the current directory config (highest precedence)
+	path, found = findConfigFile()
+	if !found {
+		t.Error("Expected to find config file in current directory")
+	} else if path != currentConfigPath {
+		t.Errorf("Expected path %s, got %s", currentConfigPath, path)
+	}
+}
+
+// TestExpandPath tests the path expansion functionality
+func TestExpandPath(t *testing.T) {
+	// Test home directory expansion
+	homeDir, err := os.UserHomeDir()
+	if err == nil {
+		expanded := expandPath("~/test")
+		expected := filepath.Join(homeDir, "test")
+		if expanded != expected {
+			t.Errorf("Expected %s, got %s", expected, expanded)
+		}
+	}
+
+	// Test environment variable expansion
+	os.Setenv("GOLDFISH_TEST_DIR", "/tmp/goldfish-test")
+	expanded := expandPath("$GOLDFISH_TEST_DIR/config")
+	expected := "/tmp/goldfish-test/config"
+	if expanded != expected {
+		t.Errorf("Expected %s, got %s", expected, expanded)
+	}
+
+	// Test no expansion needed
+	path := "/etc/goldfish/commands.yml"
+	expanded = expandPath(path)
+	if expanded != path {
+		t.Errorf("Expected %s, got %s", path, expanded)
+	}
+}

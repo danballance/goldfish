@@ -6,9 +6,20 @@ package config
 import (
 	_ "embed"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
+
+// ConfigSearchPaths defines the directories to search for commands.yml
+// in order of precedence (highest to lowest)
+var ConfigSearchPaths = []string{
+	".", // Current working directory (highest precedence)
+	"$HOME/.config/goldfish",
+	"$HOME/.goldfish",
+	"/etc/goldfish", // System-wide configuration (lowest precedence)
+}
 
 // defaultCommandsYAML contains the embedded default commands configuration
 // This is loaded from default_commands.yml at build time
@@ -70,6 +81,52 @@ func MergeConfigs(base, override *Config) *Config {
 	return merged
 }
 
+// expandPath expands environment variables in a path
+func expandPath(path string) string {
+	if len(path) == 0 {
+		return path
+	}
+	
+	// Expand $HOME or other environment variables
+	if path[0] == '$' {
+		end := 1
+		for end < len(path) && (path[end] >= 'A' && path[end] <= 'Z' || path[end] == '_') {
+			end++
+		}
+		if end > 1 {
+			envVar := path[1:end]
+			envVal := os.Getenv(envVar)
+			if envVal != "" {
+				return envVal + path[end:]
+			}
+		}
+	}
+	
+	// Handle ~ expansion for home directory
+	if path[0] == '~' && (len(path) == 1 || path[1] == '/') {
+		homeDir, err := os.UserHomeDir()
+		if err == nil {
+			return filepath.Join(homeDir, path[1:])
+		}
+	}
+	
+	return os.ExpandEnv(path)
+}
+
+// findConfigFile searches for commands.yml in the configured search paths
+// Returns the path to the first found file and true, or empty string and false if not found
+func findConfigFile() (string, bool) {
+	for _, searchPath := range ConfigSearchPaths {
+		expandedPath := expandPath(searchPath)
+		configPath := filepath.Join(expandedPath, "commands.yml")
+		
+		if _, err := os.Stat(configPath); err == nil {
+			return configPath, true
+		}
+	}
+	return "", false
+}
+
 // LoadWithDefaults loads configuration with embedded defaults as fallback
 // It first loads the embedded defaults, then attempts to load and merge
 // an optional runtime configuration file if it exists
@@ -80,15 +137,28 @@ func LoadWithDefaults(runtimeConfigPath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to load embedded defaults: %w", err)
 	}
 
-	// Try to load runtime configuration
-	loader := NewLoader(runtimeConfigPath)
-	runtimeConfig, err := loader.Load()
-	if err != nil {
+	// If a specific runtime config path was provided, try to load it
+	if runtimeConfigPath != "" {
+		loader := NewLoader(runtimeConfigPath)
+		runtimeConfig, err := loader.Load()
+		if err == nil {
+			// Merge runtime config over defaults
+			return MergeConfigs(defaultConfig, runtimeConfig), nil
+		}
 		// If runtime config doesn't exist or fails to load, use defaults only
-		// This makes the runtime config optional
 		return defaultConfig, nil
 	}
+	
+	// Otherwise, search for config files in the standard locations
+	if configPath, found := findConfigFile(); found {
+		loader := NewLoader(configPath)
+		runtimeConfig, err := loader.Load()
+		if err == nil {
+			// Merge runtime config over defaults
+			return MergeConfigs(defaultConfig, runtimeConfig), nil
+		}
+	}
 
-	// Merge runtime config over defaults
-	return MergeConfigs(defaultConfig, runtimeConfig), nil
+	// If no runtime config found or loaded, use defaults only
+	return defaultConfig, nil
 }

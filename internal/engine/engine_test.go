@@ -242,6 +242,54 @@ func TestEngine_ParseParameters(t *testing.T) {
 	}
 }
 
+// TestEngine_ParseParametersWithoutExplicitFlags demonstrates the bug with auto-generated flags
+func TestEngine_ParseParametersWithoutExplicitFlags(t *testing.T) {
+	engine := NewEngine(time.Second)
+
+	// Create a command with parameters that don't have explicit Flag fields
+	// This simulates how commands are typically defined and how cobra auto-generates flags
+	cmd := &config.Command{
+		Parameters: []config.Parameter{
+			{
+				Name:        "message",
+				Type:        "string",
+				Required:    true,
+				Description: "Message to echo",
+				// Note: no Flag field - cobra will auto-generate --message
+			},
+			{
+				Name:        "verbose",
+				Type:        "bool",
+				Required:    false,
+				Description: "Verbose output",
+				// Note: no Flag field - cobra will auto-generate --verbose
+			},
+		},
+	}
+
+	// Simulate flags as they come from cobra command execution
+	// Cobra provides flag values with the -- prefix in the map keys
+	flags := map[string]interface{}{
+		"--message": "hello world",
+		"--verbose": true,
+	}
+
+	// This should work but currently fails because ParseParameters
+	// doesn't handle auto-generated flag names properly
+	params, err := engine.ParseParameters(cmd, []string{}, flags)
+	if err != nil {
+		t.Fatalf("ParseParameters() failed with auto-generated flags: %v", err)
+	}
+
+	// Verify parameters were parsed correctly
+	if params["message"] != "hello world" {
+		t.Errorf("Expected message='hello world', got %v", params["message"])
+	}
+	if params["verbose"] != true {
+		t.Errorf("Expected verbose=true, got %v", params["verbose"])
+	}
+}
+
 // TestEngine_convertArgument tests the convertArgument method
 func TestEngine_convertArgument(t *testing.T) {
 	engine := NewEngine(time.Second)

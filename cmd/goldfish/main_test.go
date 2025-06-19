@@ -84,8 +84,15 @@ commands:
 	if app.rootCmd == nil {
 		t.Error("Root command not created")
 	}
-	if len(app.config.Commands) != 1 {
-		t.Errorf("Expected 1 command, got %d", len(app.config.Commands))
+	// With embedded defaults (5) + test config (1), we should have 6 commands
+	if len(app.config.Commands) != 6 {
+		t.Errorf("Expected 6 commands (5 embedded defaults + 1 test), got %d", len(app.config.Commands))
+	}
+	
+	// Verify the test command was loaded correctly
+	testCmd, found := app.config.FindCommand("test-echo")
+	if !found || testCmd == nil {
+		t.Error("Test command 'test-echo' not found in merged config")
 	}
 }
 
